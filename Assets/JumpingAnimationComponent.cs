@@ -1,5 +1,4 @@
-﻿using System;
-using DG.Tweening;
+﻿using DG.Tweening;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -7,35 +6,17 @@ public class JumpingAnimationComponent : MonoBehaviour
 {
     private Image _image;
     private Sequence _seq;
-    
-    private void Start()
+    private bool _requestLoopChange;
+    private bool _enableLoop;
+
+    public void InitializeSequence(int startJumps, int endJumps, bool enableRotate, float timeScale)
     {
-        _image = GetComponent<Image>();
-        
-        _seq = JumpingSequence().SetAutoKill(false).Play();
-        _seq.DOTimeScale(1.1f, 0);
-    }
+        DOTween.Kill(gameObject, true);
+        var seq = DOTween.Sequence().SetTarget(gameObject);
+        var seq2 = DOTween.Sequence().SetTarget(gameObject);
 
-    private void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            Debug.Break();
-        }
-
-        if (Input.GetKeyDown(KeyCode.R))
-        {
-            _seq.Restart();
-        }
-    }
-
-    private Sequence JumpingSequence()
-    {
-        var seq = DOTween.Sequence();
-        var seq2 = DOTween.Sequence();
-
-        var jumpLoop = DOTween.Sequence();
-        for (var i = 0; i < 5; i++)
+        var jumpLoop = DOTween.Sequence().SetTarget(gameObject);
+        for (var i = 0; i < startJumps; i++)
         {
             jumpLoop.Append(_image.transform.DOScaleY(0.85f, 0.07f));
             jumpLoop.Join(_image.transform.DOScaleX(1.15f, 0.07f));
@@ -45,8 +26,8 @@ public class JumpingAnimationComponent : MonoBehaviour
             jumpLoop.Join(_image.transform.DOScaleX(1f, 0.07f));
         }
         
-        var jumpLoop2 = DOTween.Sequence();
-        for (var i = 0; i < 5; i++)
+        var jumpLoop2 = DOTween.Sequence().SetTarget(gameObject);
+        for (var i = 0; i < endJumps; i++)
         {
             jumpLoop2.Append(_image.transform.DOScaleY(0.9f, 0.07f));
             jumpLoop2.Join(_image.transform.DOScaleX(1.1f, 0.07f));
@@ -56,8 +37,7 @@ public class JumpingAnimationComponent : MonoBehaviour
             jumpLoop2.Join(_image.transform.DOScaleX(1f, 0.07f));
         }
         
-
-        var connected = DOTween.Sequence();
+        var connected = DOTween.Sequence().SetTarget(gameObject);
         
         seq2.Prepend(_image.transform.DOScaleY(0.8f, 0.1f));
         seq2.Join(_image.transform.DOScaleX(1.2f, 0.1f));
@@ -70,13 +50,84 @@ public class JumpingAnimationComponent : MonoBehaviour
         seq.Insert(0.08f, _image.transform.DOLocalMoveY(_image.transform.localPosition.y + 120, 0.55f).SetEase(Ease.OutCirc));
         seq.Insert(0.67f, _image.transform.DOLocalMoveY(_image.transform.localPosition.y, 0.2f).SetEase(Ease.InSine));
 
-        connected.Append(jumpLoop);
+        if (startJumps > 0)
+        {
+            connected.Append(jumpLoop);
+        }
+
+        if (enableRotate)
+        {
+            connected.Append(seq2);
+            connected.Join(seq);
+        }
+
+        if (endJumps > 0)
+        {
+            connected.Append(jumpLoop2);
+        }
+
+        if (connected.Duration() == 0)
+        {
+            _seq = null;
+            return;
+        }
         
-        connected.Append(seq2);
-        connected.Join(seq);
-        
-        connected.Append(jumpLoop2);
-        
-        return connected;
+        connected.timeScale = timeScale;
+        _seq = connected.SetAutoKill(false);
+        _seq.onStepComplete += OnStepComplete;
+    }
+    
+    private void Start()
+    {
+        _image = GetComponent<Image>();
+    }
+
+    public bool IsPlaying()
+    {
+        return _seq != null && _seq.IsPlaying();
+    }
+
+    public void SetLoop(bool enable)
+    {
+        if (enable)
+        {
+            _seq?.SetLoops(-1);
+            _enableLoop = true;
+            _requestLoopChange = true;
+        }
+        else
+        {
+            _seq?.SetLoops(0);
+            _enableLoop = false;
+            _requestLoopChange = true;
+        }
+    }
+
+    private void OnStepComplete()
+    {
+        if (_requestLoopChange)
+        {
+            if (_enableLoop)
+            {
+                _seq?.Restart();
+            }
+            else
+            {
+                StopTween();
+            }
+            
+            _requestLoopChange = false;
+        }
+    }
+
+    public void StopTween()
+    {
+        _seq.Pause();
+        _seq.Goto(0);
+    }
+    
+    public void RestartTween()
+    {
+        _seq?.Restart(); 
     }
 }
